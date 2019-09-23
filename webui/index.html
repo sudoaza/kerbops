@@ -1,0 +1,122 @@
+<!doctype html><html><head>
+  <script src="http://www.hivemq.com/demos/websocket-client/js/mqttws31.js"></script>
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+  <script src="https://threejs.org/build/three.js"></script>
+  <style>
+      #trackview { width: 50%; margin:0; padding:0; float:left; min-height:100%; }
+      #msglog { width: 50%; margin:0; padding:0; float:right; font-size:10px; font-family: 'Courier New', Courier, monospace; }
+  </style>
+</head>
+<body>
+
+<div id="trackview"></div>
+<pre id="msglog"></pre>
+
+<script>
+var client = new Messaging.Client("broker.hivemq.com", 8000, "test_" + parseInt(Math.random() * 100, 10));
+
+function conn_lost(responseObject) { alert("connection lost: " + responseObject.errorMessage) }
+function mqtt_connected() {
+    console.log("Connected");
+    client.subscribe('ETER/VESSEL001/KSP_SHIP/#', {qos: 2});
+}
+client.onConnectionLost = conn_lost;
+client.onMessageArrived = message_received;
+
+var options = {
+  timeout: 3,
+  onSuccess: mqtt_connected,
+  onFailure: conn_lost
+};
+client.connect(options);
+
+
+
+
+
+
+
+var original_position;
+var data = {};
+
+function message_received(message) {
+  log(message);
+  data = parse_message(message);
+  requestAnimationFrame(animate);
+}
+
+function parse_message(message) { return JSON.parse(message.payloadString) }
+
+function log(message) {
+    $('#msglog').text( message.destinationName + " " + message.payloadString + "\n" + $('#msglog').text() );
+}
+
+function normalize_position(position) {
+    if (typeof(original_position) == "undefined") {
+        original_position = data.position;
+    }
+    return [ 
+        position[0] - original_position[0], 
+        position[1] - original_position[1], 
+        position[2] - original_position[2]
+   ];
+}
+
+
+
+
+
+var renderer, scene, camera, trackview;
+var line;
+var MAX_POINTS = 5000;
+var drawCount = 0;
+var width = 800;
+var height = 600;
+
+trackview = document.getElementById('trackview');
+renderer = new THREE.WebGLRenderer();
+renderer.setPixelRatio( window.devicePixelRatio );
+renderer.setSize(width, height);
+document.getElementById('trackview').appendChild( renderer.domElement );
+
+scene = new THREE.Scene();
+camera = new THREE.PerspectiveCamera( 45, width / height, 1, 10000 );
+camera.position.set( 1000, 1000, 1000 );
+camera.lookAt( 0, 0, 0 );
+
+
+var geometry = new THREE.BufferGeometry();
+var positions = new Float32Array( MAX_POINTS * 3 ); // 3 vertices per point
+geometry.addAttribute( 'position', new THREE.BufferAttribute( positions, 3 ) );
+var material = new THREE.LineBasicMaterial( { color: 0xff0000, linewidth: 2 } );
+line = new THREE.Line( geometry,  material );
+scene.add( line );
+
+
+
+
+function animate() {
+    add_point(line, data.position, drawCount);
+    line.geometry.attributes.position.needsUpdate = true; // required after the first render
+    drawCount = ( drawCount + 1 ) % MAX_POINTS;
+	line.geometry.setDrawRange( 0, drawCount );
+	render();
+}
+
+function add_point(line, point, index) {
+    var pos = normalize_position(point);
+    line.geometry.attributes.position.array[index * 3 ] = pos[0];
+    line.geometry.attributes.position.array[index * 3 + 1] = pos[1];
+    line.geometry.attributes.position.array[index * 3 + 2] = pos[2];
+    camera.lookAt( pos[0], pos[1], pos[2]);
+    console.log(pos);
+}
+function render() {
+	renderer.render( scene, camera );
+}
+
+
+
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 import krpc
-from track_vessel import track_vessel
-from eter import eter
+from lib.track_vessel import track_vessel
+from lib.eter import eter
 
 conn = krpc.connect(address='localhost', rpc_port=5000, stream_port=5001)
 print(conn.krpc.get_status().version)
@@ -13,7 +13,7 @@ def tick(state):
     e.publish('VESSEL001', 'KSP_SHIP', state)
 
 tv = track_vessel(conn)
-tv.set_report_callback(tick, 0.2)
+tv.set_report_callback(tick, 0.1)
 tv.start()
 
 e.listen_blocking()
